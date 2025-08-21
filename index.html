@@ -1,0 +1,2440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FX取引履歴分析ツール (フィルタリング機能搭載)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; color: white; margin-bottom: 30px; }
+        h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .upload-section { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        .file-info { margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea; }
+        .file-info h4 { color: #667eea; margin-bottom: 8px; font-size: 1em; }
+        .file-info div { color: #666; font-size: 0.9em; line-height: 1.4; }
+        .timezone-info { background: #e0f2fe; border-left: 4px solid #0288d1; padding: 10px; border-radius: 6px; margin-top: 10px; }
+        .timezone-info strong { color: #0277bd; }
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border-radius: 25px; }
+        #fileInput { position: absolute; left: -9999px; }
+        .filter-section { background: white; border-radius: 15px; padding: 20px; margin-bottom: 30px; display: none; flex-wrap: wrap; gap: 20px; align-items: center; }
+        .filter-group { display: flex; flex-direction: column; }
+        .filter-group label { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+        .filter-group select { padding: 8px; border: 1px solid #ddd; border-radius: 8px; background-color: #f8f9fa; min-width: 180px;}
+        .analysis-section { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+        .metric-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative; }
+        .metric-card h3 { color: #667eea; margin-bottom: 15px; font-size: 1.2em; display: flex; align-items: center; gap: 8px; }
+        .help-icon { cursor: pointer; color: #9ca3af; font-size: 0.9em; opacity: 0.7; transition: opacity 0.2s; }
+        .help-icon:hover { opacity: 1; color: #667eea; }
+        .chart-container h3 { display: flex; align-items: center; gap: 8px; }
+        .popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .popup-content { background: white; border-radius: 12px; padding: 25px; max-width: 400px; margin: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .popup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .popup-title { font-size: 1.2em; font-weight: bold; color: #667eea; }
+        .popup-close { cursor: pointer; font-size: 1.5em; color: #9ca3af; font-weight: bold; }
+        .popup-close:hover { color: #ef4444; }
+        .popup-body { color: #374151; line-height: 1.6; }
+        
+        /* サイドパネル用スタイル */
+        .side-panel { position: fixed; top: 0; right: -600px; width: 600px; height: 100vh; background: white; z-index: 1100; transition: right 0.3s ease; overflow-y: auto; box-shadow: -5px 0 15px rgba(0,0,0,0.1); }
+        .side-panel.open { right: 0; }
+        .side-panel-header { padding: 20px; border-bottom: 1px solid #e5e7eb; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+        .side-panel-title { font-size: 1.3em; font-weight: bold; color: #667eea; }
+        .side-panel-close { cursor: pointer; font-size: 1.8em; color: #9ca3af; font-weight: bold; }
+        .side-panel-close:hover { color: #ef4444; }
+        .side-panel-content { padding: 20px; }
+        .drill-section { margin-bottom: 30px; }
+        .drill-section h3 { color: #667eea; margin-bottom: 15px; font-size: 1.1em; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
+        .drill-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .drill-stat-item { background: #f8f9fa; padding: 12px; border-radius: 8px; text-align: center; }
+        .drill-stat-value { font-size: 1.2em; font-weight: bold; color: #374151; }
+        .drill-stat-label { font-size: 0.9em; color: #6b7280; margin-top: 4px; }
+        .drill-chart-container { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .drill-chart-container h4 { color: #374151; margin-bottom: 10px; font-size: 1em; }
+        .drill-trade-list { max-height: 200px; overflow-y: auto; background: white; border-radius: 6px; padding: 10px; margin-top: 10px; }
+        .drill-trade-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.9em; }
+        .drill-trade-item:last-child { border-bottom: none; }
+        .trade-info { display: flex; flex-direction: column; }
+        .trade-date { color: #6b7280; font-size: 0.8em; }
+        .trade-symbol { font-weight: bold; color: #374151; }
+        .trade-profit { font-weight: bold; }
+        .drill-insights { background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 6px; margin-top: 15px; }
+        .drill-insights h4 { color: #1e40af; margin-bottom: 10px; font-size: 1em; }
+        .drill-insights ul { margin-left: 20px; }
+        .drill-insights li { margin-bottom: 5px; color: #374151; }
+        .metric-value { font-size: 2em; font-weight: bold; margin-bottom: 10px; }
+        .positive { color: #10b981; }
+        .negative { color: #ef4444; }
+        .neutral { color: #6b7280; }
+        .chart-container { background: white; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .error-message { background: #fee; color: #c33; padding: 15px; border-radius: 5px; margin-top: 20px; display: none; }
+        .loading { display: none; text-align: center; padding: 20px; color: #667eea; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>FX取引履歴分析ツール</h1>
+            <p>MT4/MT5の取引履歴(HTML)をアップロードして、あなたのトレードを分析します</p>
+        </header>
+
+        <div class="upload-section">
+            <h2>取引履歴ファイルをアップロード</h2>
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" accept=".html,.htm" />
+                <label for="fileInput">ファイルを選択</label>
+            </div>
+            <div id="fileName" style="margin-top: 10px; color: #666;"></div>
+            <div id="fileInfo" class="file-info" style="display: none;">
+                <h4>取引履歴情報</h4>
+                <div id="tradePeriod"></div>
+                <div id="tradeCount"></div>
+            </div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>分析中...</p>
+            </div>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+        
+        <div class="filter-section" id="filterSection">
+            <div class="filter-group">
+                <label for="symbolFilter">通貨ペア</label>
+                <select id="symbolFilter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="weekdayFilter">曜日</label>
+                <select id="weekdayFilter">
+                    <option value="all">すべての曜日</option>
+                    <option value="1">月曜日</option><option value="2">火曜日</option><option value="3">水曜日</option>
+                    <option value="4">木曜日</option><option value="5">金曜日</option><option value="6">土曜日</option>
+                    <option value="0">日曜日</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="hourFilter">時間帯（日本時間）</label>
+                <select id="hourFilter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="resultFilter">勝敗</label>
+                <select id="resultFilter">
+                    <option value="all">すべての取引</option>
+                    <option value="win">勝ちトレードのみ</option>
+                    <option value="loss">負けトレードのみ</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="analysisRoot"></div>
+        
+        <!-- ポップアップオーバーレイ -->
+        <div class="popup-overlay" id="popupOverlay">
+            <div class="popup-content">
+                <div class="popup-header">
+                    <div class="popup-title" id="popupTitle"></div>
+                    <div class="popup-close" id="popupClose">&times;</div>
+                </div>
+                <div class="popup-body" id="popupBody"></div>
+            </div>
+        </div>
+        
+        <!-- サイドパネル -->
+        <div class="side-panel-overlay" id="sidePanelOverlay"></div>
+        <div class="side-panel" id="sidePanel">
+            <div class="side-panel-header">
+                <div class="side-panel-title" id="sidePanelTitle">詳細分析</div>
+                <div class="side-panel-close" id="sidePanelClose">&times;</div>
+            </div>
+            <div class="side-panel-content" id="sidePanelContent">
+                <!-- ドリルダウン内容がここに動的に追加されます -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script>
+        // --- グローバル変数 ---
+        let allTrades = [];
+        let activeCharts = [];
+        let detectedTimezone = null;
+
+        // --- DOM要素の取得 ---
+        const fileInput = document.getElementById('fileInput');
+        const fileNameEl = document.getElementById('fileName');
+        const fileInfoEl = document.getElementById('fileInfo');
+        const tradePeriodEl = document.getElementById('tradePeriod');
+        const tradeCountEl = document.getElementById('tradeCount');
+        const loadingEl = document.getElementById('loading');
+        const errorEl = document.getElementById('errorMessage');
+        const filterSectionEl = document.getElementById('filterSection');
+        const analysisRootEl = document.getElementById('analysisRoot');
+        const symbolFilterEl = document.getElementById('symbolFilter');
+        const weekdayFilterEl = document.getElementById('weekdayFilter');
+        const hourFilterEl = document.getElementById('hourFilter');
+        const resultFilterEl = document.getElementById('resultFilter');
+        const popupOverlay = document.getElementById('popupOverlay');
+        const popupTitle = document.getElementById('popupTitle');
+        const popupBody = document.getElementById('popupBody');
+        const popupClose = document.getElementById('popupClose');
+        const sidePanel = document.getElementById('sidePanel');
+        const sidePanelOverlay = document.getElementById('sidePanelOverlay');
+        const sidePanelTitle = document.getElementById('sidePanelTitle');
+        const sidePanelContent = document.getElementById('sidePanelContent');
+        const sidePanelClose = document.getElementById('sidePanelClose');
+
+        // --- ヘルプ説明文 ---
+        const helpTexts = {
+            '総取引数': '分析対象期間内に実行された売買取引の総回数です。取引頻度の把握に使用します。',
+            '勝率': '利益を出したトレードの割合です。勝率50%以上が一般的な目安とされています。',
+            '総損益': '全取引の損益を合計した金額です。プラスなら利益、マイナスなら損失を表します。',
+            '平均利益': '勝ちトレード1回あたりの平均利益額です。利確の効率性を測る指標です。',
+            '平均損失': '負けトレード1回あたりの平均損失額です。損切りの適切性を判断できます。',
+            'リスクリワード比': '平均利益÷平均損失の比率です。1.0以上なら利益が損失を上回っています。',
+            '最大連勝': '連続して利益を出したトレードの最長記録です。手法の安定性を示します。',
+            '最大連敗': '連続して損失を出したトレードの最長記録です。リスク管理の参考になります。',
+            '勝ちトレード平均保有時間': '利益を出したポジションの平均保有期間です。利確タイミングの傾向が分かります。',
+            '負けトレード平均保有時間': '損失を出したポジションの平均保有期間です。損切りの速さを評価できます。',
+            'シャープレシオ': 'リスク1単位あたりのリターンを示す指標です。1.0以上で良好、1.5以上で優秀とされます。',
+            'プロフィットファクター': '総利益÷総損失の比率です。1.25以上なら良好な損益バランスを表しています。',
+            '累積損益推移': '時系列での損益の積み重ねを表示します。右肩上がりなら継続的な利益を示しています。',
+            '損益分布': '取引の損益を金額帯別に分類したグラフです。損益の偏りや傾向を把握できます。',
+            '保有時間分布': '勝ち負け別のポジション保有時間を比較します。損切りと利確のタイミングを分析できます。',
+            '通貨ペア別パフォーマンス': '各通貨ペアの損益と取引回数を表示します。得意・不得意な通貨ペアが分かります。',
+            '曜日別パフォーマンス': '曜日ごとの損益傾向を分析します。市場の特性や自身のパフォーマンスパターンを把握できます。',
+            '時間帯別パフォーマンス（日本時間）': '日本時間での時間別損益傾向を表示します。最適なトレード時間帯を見つけるのに役立ちます。'
+        };
+
+        // --- イベントリスナー ---
+        fileInput.addEventListener('change', handleFileUpload);
+        symbolFilterEl.addEventListener('change', applyFiltersAndRender);
+        weekdayFilterEl.addEventListener('change', applyFiltersAndRender);
+        hourFilterEl.addEventListener('change', applyFiltersAndRender);
+        resultFilterEl.addEventListener('change', applyFiltersAndRender);
+        popupClose.addEventListener('click', closePopup);
+        popupOverlay.addEventListener('click', (e) => {
+            if (e.target === popupOverlay) closePopup();
+        });
+        sidePanelClose.addEventListener('click', closeSidePanel);
+        sidePanelOverlay.addEventListener('click', closeSidePanel);
+        
+        // --- メインロジック ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            resetAnalysisView();
+            fileNameEl.textContent = `選択されたファイル: ${file.name}`;
+            setLoading(true);
+
+            const reader = new FileReader();
+            reader.onload = (e) => parseMT4History(e.target.result);
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseMT4History(htmlContent) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+                const tables = doc.querySelectorAll('table');
+                let parsedTrades = [];
+                tables.forEach(table => {
+                    parsedTrades = parsedTrades.concat(parseTableData(table));
+                });
+                onFileParsed(parsedTrades);
+            } catch (error) {
+                console.error('Parse error:', error);
+                showError('ファイルの解析中にエラーが発生しました: ' + error.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+        
+        function onFileParsed(parsedTrades) {
+            if (parsedTrades && parsedTrades.length > 0) {
+                // サーバー時間を自動判定
+                detectedTimezone = detectServerTimezone(parsedTrades);
+                
+                // 日本時間に変換
+                allTrades = parsedTrades.map(trade => ({
+                    ...trade,
+                    originalOpenTime: trade.openTime,
+                    originalCloseTime: trade.closeTime,
+                    openTime: convertToJST(trade.openTime, detectedTimezone),
+                    closeTime: convertToJST(trade.closeTime, detectedTimezone),
+                    duration: trade.closeTime.getTime() - trade.openTime.getTime()
+                })).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
+                
+                displayFileInfo(allTrades);
+                populateFilters();
+                filterSectionEl.style.display = 'flex';
+                applyFiltersAndRender();
+            } else {
+                showError('ファイルから取引データが見つかりませんでした。');
+            }
+        }
+
+        function detectServerTimezone(trades) {
+            // 取引の時間分布を分析してサーバータイムゾーンを推定
+            const hourDistribution = Array(24).fill(0);
+            
+            trades.forEach(trade => {
+                const hour = trade.openTime.getHours();
+                hourDistribution[hour]++;
+            });
+            
+            // 主要FX市場の活発な時間帯パターンを定義
+            const marketPatterns = {
+                'GMT+0': {
+                    name: 'GMT+0 (ロンドン時間)',
+                    offset: 9, // 日本時間との差
+                    description: 'イギリス系ブローカー',
+                    peakHours: [7, 8, 9, 13, 14, 15] // ロンドン市場開始、NY市場開始
+                },
+                'GMT+2': {
+                    name: 'GMT+2 (中央ヨーロッパ時間)',
+                    offset: 7, // 日本時間との差（冬時間）
+                    description: 'ヨーロッパ系ブローカー (最も一般的)',
+                    peakHours: [9, 10, 11, 15, 16, 17] // ロンドン、NY開始時間
+                },
+                'GMT+3': {
+                    name: 'GMT+3 (東ヨーロッパ時間)',
+                    offset: 6, // 日本時間との差
+                    description: '東欧・ロシア系ブローカー',
+                    peakHours: [10, 11, 12, 16, 17, 18]
+                },
+                'JST': {
+                    name: 'JST (日本時間)',
+                    offset: 0,
+                    description: '既に日本時間',
+                    peakHours: [17, 18, 19, 22, 23, 0, 1] // 日本時間でのFX活発時間
+                }
+            };
+            
+            let bestMatch = null;
+            let bestScore = -1;
+            
+            Object.keys(marketPatterns).forEach(tz => {
+                const pattern = marketPatterns[tz];
+                let score = 0;
+                
+                // ピーク時間帯での取引量をスコア化
+                pattern.peakHours.forEach(hour => {
+                    score += hourDistribution[hour];
+                });
+                
+                // 深夜時間帯（2-6時）の取引が少ないかチェック
+                const nightTradeRatio = (hourDistribution[2] + hourDistribution[3] + hourDistribution[4] + hourDistribution[5]) / trades.length;
+                if (nightTradeRatio < 0.1) {
+                    score += trades.length * 0.2; // ボーナス
+                }
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = pattern;
+                }
+            });
+            
+            return bestMatch;
+        }
+
+        function convertToJST(date, timezone) {
+            if (!timezone || timezone.offset === 0) return date;
+            
+            const offsetMs = timezone.offset * 60 * 60 * 1000;
+            return new Date(date.getTime() + offsetMs);
+        }
+
+        function displayFileInfo(trades) {
+            if (trades.length === 0) return;
+            
+            const startDate = new Date(Math.min(...trades.map(t => t.openTime.getTime())));
+            const endDate = new Date(Math.max(...trades.map(t => t.closeTime.getTime())));
+            
+            const formatDate = (date) => {
+                return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+            };
+            
+            tradePeriodEl.textContent = `期間: ${formatDate(startDate)} 〜 ${formatDate(endDate)}`;
+            tradeCountEl.textContent = `総取引数: ${trades.length}回`;
+            
+            // タイムゾーン情報を追加
+            if (detectedTimezone) {
+                const timezoneDiv = document.createElement('div');
+                timezoneDiv.className = 'timezone-info';
+                timezoneDiv.innerHTML = `
+                    <strong>検出されたサーバー時間:</strong> ${detectedTimezone.name}<br>
+                    <small>${detectedTimezone.description} | 表示時間は日本時間に自動変換済み</small>
+                `;
+                
+                // 既存のタイムゾーン情報があれば削除
+                const existingTimezone = fileInfoEl.querySelector('.timezone-info');
+                if (existingTimezone) {
+                    existingTimezone.remove();
+                }
+                
+                fileInfoEl.appendChild(timezoneDiv);
+            }
+            
+            fileInfoEl.style.display = 'block';
+        }
+
+        function applyFiltersAndRender() {
+            let filteredTrades = allTrades;
+            
+            const symbol = symbolFilterEl.value;
+            const weekday = weekdayFilterEl.value;
+            const hour = hourFilterEl.value;
+            const result = resultFilterEl.value;
+            
+            if (symbol !== 'all') filteredTrades = filteredTrades.filter(t => t.symbol === symbol);
+            if (weekday !== 'all') filteredTrades = filteredTrades.filter(t => t.openTime.getDay() === parseInt(weekday));
+            
+            // 時間帯フィルターの処理
+            if (hour !== 'all') {
+                filteredTrades = filteredTrades.filter(t => {
+                    const tradeHour = t.openTime.getHours();
+                    return isInTimeRange(tradeHour, hour);
+                });
+            }
+            
+            if (result === 'win') filteredTrades = filteredTrades.filter(t => t.isWin);
+            else if (result === 'loss') filteredTrades = filteredTrades.filter(t => !t.isWin);
+            
+            renderAnalysis(filteredTrades);
+        }
+
+        function isInTimeRange(hour, range) {
+            switch(range) {
+                case '5-8': // 早朝 (5:00-8:59) オセアニア時間
+                    return hour >= 5 && hour <= 8;
+                case '9-11': // 午前 (9:00-11:59) 東京午前
+                    return hour >= 9 && hour <= 11;
+                case '12-15': // 午後 (12:00-15:59) 東京午後
+                    return hour >= 12 && hour <= 15;
+                case '16-18': // 夕方 (16:00-18:59) ロンドン開場
+                    return hour >= 16 && hour <= 18;
+                case '19-21': // 夜間 (19:00-21:59) 欧州時間
+                    return hour >= 19 && hour <= 21;
+                case '22-1': // 深夜 (22:00-1:59) NY時間
+                    return hour >= 22 || hour <= 1;
+                case '2-4': // 未明 (2:00-4:59) 閑散時間
+                    return hour >= 2 && hour <= 4;
+                default:
+                    return true;
+            }
+        }
+
+        function renderAnalysis(tradesToRender) {
+            resetAnalysisView(true);
+            
+            if (tradesToRender.length === 0) {
+                showError("選択された条件に一致する取引データがありません。");
+                return;
+            }
+
+            const stats = calculateStatistics(tradesToRender);
+            
+            analysisRootEl.innerHTML = `
+                <div class="analysis-section">
+                    <div class="metric-card"><h3>総取引数<span class="help-icon" onclick="showHelp('総取引数')">?</span></h3><div class="metric-value" id="totalTrades"></div></div>
+                    <div class="metric-card"><h3>勝率<span class="help-icon" onclick="showHelp('勝率')">?</span></h3><div class="metric-value" id="winRate"></div></div>
+                    <div class="metric-card"><h3>総損益<span class="help-icon" onclick="showHelp('総損益')">?</span></h3><div class="metric-value" id="totalProfit"></div></div>
+                    <div class="metric-card"><h3>平均利益<span class="help-icon" onclick="showHelp('平均利益')">?</span></h3><div class="metric-value positive" id="avgProfit"></div></div>
+                    <div class="metric-card"><h3>平均損失<span class="help-icon" onclick="showHelp('平均損失')">?</span></h3><div class="metric-value negative" id="avgLoss"></div></div>
+                    <div class="metric-card"><h3>リスクリワード比<span class="help-icon" onclick="showHelp('リスクリワード比')">?</span></h3><div class="metric-value" id="riskReward"></div></div>
+                    <div class="metric-card"><h3>最大連勝<span class="help-icon" onclick="showHelp('最大連勝')">?</span></h3><div class="metric-value positive" id="maxWinStreak"></div></div>
+                    <div class="metric-card"><h3>最大連敗<span class="help-icon" onclick="showHelp('最大連敗')">?</span></h3><div class="metric-value negative" id="maxLossStreak"></div></div>
+                    <div class="metric-card"><h3>勝ちトレード平均保有時間<span class="help-icon" onclick="showHelp('勝ちトレード平均保有時間')">?</span></h3><div class="metric-value positive" id="avgWinDuration"></div></div>
+                    <div class="metric-card"><h3>負けトレード平均保有時間<span class="help-icon" onclick="showHelp('負けトレード平均保有時間')">?</span></h3><div class="metric-value negative" id="avgLossDuration"></div></div>
+                    <div class="metric-card"><h3>シャープレシオ<span class="help-icon" onclick="showHelp('シャープレシオ')">?</span></h3><div class="metric-value neutral" id="sharpeRatio"></div></div>
+                    <div class="metric-card"><h3>プロフィットファクター<span class="help-icon" onclick="showHelp('プロフィットファクター')">?</span></h3><div class="metric-value neutral" id="profitFactor"></div></div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>勝ち負け詳細分布</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                        <div>
+                            <h4 style="color: #10b981; margin-bottom: 10px;">勝ちトレード統計</h4>
+                            <div id="winTradeStats" style="font-size: 0.9em; line-height: 1.6;"></div>
+                        </div>
+                        <div>
+                            <h4 style="color: #ef4444; margin-bottom: 10px;">負けトレード統計</h4>
+                            <div id="lossTradeStats" style="font-size: 0.9em; line-height: 1.6;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>リスク指標の解説</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 0.9em; line-height: 1.6;">
+                        <div>
+                            <h4 style="color: #667eea; margin-bottom: 10px;">シャープレシオ</h4>
+                            <div>
+                                <div><strong>1.5以上:</strong> 優秀（緑色表示）</div>
+                                <div><strong>1.0〜1.5:</strong> 良好（グレー表示）</div>
+                                <div><strong>0.5〜1.0:</strong> 普通（グレー表示）</div>
+                                <div><strong>0.5未満:</strong> 要改善（赤色表示）</div>
+                                <div style="margin-top: 10px; color: #666;">
+                                    ※リスク1単位あたりの超過リターンを示す指標
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="color: #667eea; margin-bottom: 10px;">プロフィットファクター</h4>
+                            <div>
+                                <div><strong>1.25以上:</strong> 良好（緑色表示）</div>
+                                <div><strong>1.0〜1.25:</strong> 損益分岐点以上（グレー表示）</div>
+                                <div><strong>1.0未満:</strong> 損失（赤色表示）</div>
+                                <div style="margin-top: 10px; color: #666;">
+                                    ※総利益 ÷ 総損失で計算<br>
+                                    例: 1.25 = 利益が損失の1.25倍
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container"><h3>累積損益推移<span class="help-icon" onclick="showHelp('累積損益推移')">?</span></h3><canvas id="profitChart"></canvas></div>
+                <div class="chart-container"><h3>損益分布<span class="help-icon" onclick="showHelp('損益分布')">?</span></h3><canvas id="profitDistributionChart"></canvas></div>
+                <div class="chart-container"><h3>保有時間分布<span class="help-icon" onclick="showHelp('保有時間分布')">?</span></h3><canvas id="durationChart"></canvas></div>
+                <div class="chart-container"><h3>通貨ペア別パフォーマンス<span class="help-icon" onclick="showHelp('通貨ペア別パフォーマンス')">?</span></h3><canvas id="symbolChart"></canvas></div>
+                <div class="chart-container"><h3>曜日別パフォーマンス<span class="help-icon" onclick="showHelp('曜日別パフォーマンス')">?</span></h3><canvas id="weekdayChart"></canvas></div>
+                <div class="chart-container"><h3>時間帯別パフォーマンス（日本時間）<span class="help-icon" onclick="showHelp('時間帯別パフォーマンス（日本時間）')">?</span></h3><canvas id="timeChart"></canvas></div>
+            `;
+            
+            displayMetrics(stats);
+            displayTradeDistribution(stats);
+            createChart('profitChart', (ctx) => createProfitChart(ctx, tradesToRender));
+            createChart('profitDistributionChart', (ctx) => createProfitDistributionChart(ctx, tradesToRender));
+            createChart('durationChart', (ctx) => createDurationChart(ctx, tradesToRender));
+            createChart('symbolChart', (ctx) => createSymbolAnalysisChart(ctx, calculateStatistics(allTrades).symbolStats));
+            createChart('weekdayChart', (ctx) => createWeekdayAnalysisChart(ctx, stats));
+            createChart('timeChart', (ctx) => createTimeAnalysisChart(ctx, stats.hourlyStats));
+        }
+
+        function resetAnalysisView(keepFilters = false) {
+            analysisRootEl.innerHTML = '';
+            errorEl.style.display = 'none';
+            if (!keepFilters) {
+                filterSectionEl.style.display = 'none';
+                fileInfoEl.style.display = 'none';
+                detectedTimezone = null;
+            }
+            activeCharts.forEach(chart => chart.destroy());
+            activeCharts = [];
+        }
+
+        function setLoading(isLoading) {
+            loadingEl.style.display = isLoading ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = message;
+        }
+
+        function populateFilters() {
+            const symbols = [...new Set(allTrades.map(t => t.symbol))];
+            symbolFilterEl.innerHTML = '<option value="all">すべての通貨ペア</option>';
+            symbols.sort().forEach(s => {
+                const option = document.createElement('option');
+                option.value = s;
+                option.textContent = s;
+                symbolFilterEl.appendChild(option);
+            });
+            
+            // 市場セッション別の時間フィルター
+            hourFilterEl.innerHTML = `
+                <option value="all">すべての時間</option>
+                <option value="5-8">早朝 (5:00-8:59) オセアニア時間</option>
+                <option value="9-11">午前 (9:00-11:59) 東京午前</option>
+                <option value="12-15">午後 (12:00-15:59) 東京午後</option>
+                <option value="16-18">夕方 (16:00-18:59) ロンドン開場</option>
+                <option value="19-21">夜間 (19:00-21:59) 欧州時間</option>
+                <option value="22-1">深夜 (22:00-1:59) NY時間</option>
+                <option value="2-4">未明 (2:00-4:59) 閑散時間</option>
+            `;
+        }
+
+        function parseTableData(table) {
+            const rows = table.querySelectorAll('tr');
+            const parsedTrades = [];
+            let headerMapping = {};
+            let dataStartIndex = -1;
+            for (let i = 0; i < Math.min(10, rows.length); i++) {
+                const cells = rows[i].querySelectorAll('td, th');
+                if (cells.length < 10) continue;
+                const cellTexts = Array.from(cells).map(cell => cell.textContent.trim().toLowerCase());
+                if (cellTexts.some(text => text.includes('ticket')) && cellTexts.some(text => text.includes('time')) && cellTexts.some(text => text.includes('type'))) {
+                    cellTexts.forEach((text, idx) => {
+                        if (text.includes('ticket')) headerMapping.ticket = idx;
+                        if (text.includes('open time')) headerMapping.openTime = idx;
+                        if (text.includes('type')) headerMapping.type = idx;
+                        if (text.includes('size')) headerMapping.size = idx;
+                        if (text.includes('item') || text.includes('symbol')) headerMapping.symbol = idx;
+                        if (text.includes('price') && !headerMapping.openPrice) headerMapping.openPrice = idx;
+                        if (text.includes('close time')) headerMapping.closeTime = idx;
+                        if (text.includes('price') && headerMapping.openPrice !== idx) headerMapping.closePrice = idx;
+                        if (text.includes('profit')) headerMapping.profit = idx;
+                    });
+                    dataStartIndex = i + 1;
+                    break;
+                }
+            }
+            if (dataStartIndex === -1) return [];
+            for (let i = dataStartIndex; i < rows.length; i++) {
+                const cells = rows[i].querySelectorAll('td');
+                if (cells.length < 10) continue;
+                const cellTexts = Array.from(cells).map(cell => cell.textContent.trim());
+                const type = (cellTexts[headerMapping.type] || '').toLowerCase();
+                if (type !== 'buy' && type !== 'sell' || !/^\d+$/.test(cellTexts[headerMapping.ticket])) continue;
+                let profit = 0;
+                const profitIndex = headerMapping.profit !== undefined ? headerMapping.profit : cells.length - 1;
+                if (cellTexts[profitIndex]) { profit = parseFloat(cellTexts[profitIndex].replace(/[^0-9\.-]/g, '')); }
+                if (isNaN(profit)) continue;
+                const openTime = parseDateTime(cellTexts[headerMapping.openTime]);
+                const closeTime = parseDateTime(cellTexts[headerMapping.closeTime]);
+                if (!openTime || !closeTime) continue;
+                parsedTrades.push({
+                    ticket: cellTexts[headerMapping.ticket], openTime, closeTime, type,
+                    size: parseFloat(cellTexts[headerMapping.size] || '0'), symbol: cellTexts[headerMapping.symbol],
+                    openPrice: parseFloat(cellTexts[headerMapping.openPrice] || '0'),
+                    closePrice: parseFloat(cellTexts[headerMapping.closePrice] || '0'), profit, isWin: profit > 0,
+                    duration: closeTime.getTime() - openTime.getTime() // ミリ秒での保有時間（元の時間での計算）
+                });
+            }
+            return parsedTrades;
+        }
+        
+        function parseDateTime(dateStr) {
+            if (!dateStr) return null;
+            const match = dateStr.match(/(\d{4})[./](\d{2})[./](\d{2})\s+(\d{2}):(\d{2})/);
+            if(match) {
+                const [, year, month, day, hour, minute] = match.map(Number);
+                const d = new Date(year, month - 1, day, hour, minute);
+                if (!isNaN(d.getTime())) return d;
+            }
+            return null;
+        }
+        
+        function calculateStatistics(currentTrades) {
+            const winTrades = currentTrades.filter(t => t.isWin);
+            const lossTrades = currentTrades.filter(t => !t.isWin);
+            const totalProfit = currentTrades.reduce((sum, t) => sum + t.profit, 0);
+            const avgProfit = winTrades.length > 0 ? winTrades.reduce((sum, t) => sum + t.profit, 0) / winTrades.length : 0;
+            const avgLoss = lossTrades.length > 0 ? Math.abs(lossTrades.reduce((sum, t) => sum + t.profit, 0) / lossTrades.length) : 0;
+            
+            // 最大ドローダウン計算
+            let peak = 0, maxDrawdown = 0, cumulative = 0;
+            currentTrades.forEach(trade => {
+                cumulative += trade.profit;
+                if (cumulative > peak) peak = cumulative;
+                const drawdown = peak - cumulative;
+                if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+            });
+
+            // 最大連勝/連敗計算
+            let maxWinStreak = 0, maxLossStreak = 0;
+            let currentWinStreak = 0, currentLossStreak = 0;
+            
+            currentTrades.forEach(trade => {
+                if (trade.isWin) {
+                    currentWinStreak++;
+                    currentLossStreak = 0;
+                    maxWinStreak = Math.max(maxWinStreak, currentWinStreak);
+                } else {
+                    currentLossStreak++;
+                    currentWinStreak = 0;
+                    maxLossStreak = Math.max(maxLossStreak, currentLossStreak);
+                }
+            });
+
+            // 保有時間の統計計算
+            const winDurations = winTrades.map(t => t.duration);
+            const lossDurations = lossTrades.map(t => t.duration);
+            const avgWinDuration = winDurations.length > 0 ? winDurations.reduce((sum, d) => sum + d, 0) / winDurations.length : 0;
+            const avgLossDuration = lossDurations.length > 0 ? lossDurations.reduce((sum, d) => sum + d, 0) / lossDurations.length : 0;
+
+            // 詳細統計
+            const winProfits = winTrades.map(t => t.profit);
+            const lossProfits = lossTrades.map(t => Math.abs(t.profit));
+            
+            const maxWin = winProfits.length > 0 ? Math.max(...winProfits) : 0;
+            const minWin = winProfits.length > 0 ? Math.min(...winProfits) : 0;
+            const maxLoss = lossProfits.length > 0 ? Math.max(...lossProfits) : 0;
+            const minLoss = lossProfits.length > 0 ? Math.min(...lossProfits) : 0;
+
+            const maxWinDuration = winDurations.length > 0 ? Math.max(...winDurations) : 0;
+            const minWinDuration = winDurations.length > 0 ? Math.min(...winDurations) : 0;
+            const maxLossDuration = lossDurations.length > 0 ? Math.max(...lossDurations) : 0;
+            const minLossDuration = lossDurations.length > 0 ? Math.min(...lossDurations) : 0;
+
+            // シャープレシオとプロフィットファクターの計算
+            const { sharpeRatio, profitFactor } = calculateAdvancedMetrics(currentTrades);
+            
+            const hourlyStats = {};
+            currentTrades.forEach(trade => {
+                const hour = trade.openTime.getHours(); 
+                if (!hourlyStats[hour]) hourlyStats[hour] = { profit: 0, count: 0, wins: 0 };
+                hourlyStats[hour].profit += trade.profit; hourlyStats[hour].count++; if(trade.isWin) hourlyStats[hour].wins++;
+            });
+            const symbolStats = {};
+            currentTrades.forEach(trade => {
+                if (!symbolStats[trade.symbol]) symbolStats[trade.symbol] = { profit: 0, count: 0, wins: 0 };
+                symbolStats[trade.symbol].profit += trade.profit; symbolStats[trade.symbol].count++; if (trade.isWin) symbolStats[trade.symbol].wins++;
+            });
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            const weekdayStats = {};
+            currentTrades.forEach(trade => {
+                const weekday = trade.openTime.getDay();
+                if (!weekdayStats[weekday]) weekdayStats[weekday] = { profit: 0, count: 0, wins: 0 };
+                weekdayStats[weekday].profit += trade.profit; weekdayStats[weekday].count++; if (trade.isWin) weekdayStats[weekday].wins++;
+            });
+            return {
+                totalTrades: currentTrades.length, winRatePercent: currentTrades.length > 0 ? (winTrades.length / currentTrades.length * 100).toFixed(1) : "0.0",
+                totalProfit, avgProfit, avgLoss, riskReward: avgLoss > 0 ? (avgProfit / avgLoss).toFixed(2) : "∞",
+                maxDrawdown, maxWinStreak, maxLossStreak, 
+                avgWinDuration, avgLossDuration,
+                winTrades: winTrades.length, lossTrades: lossTrades.length,
+                maxWin, minWin, maxLoss, minLoss,
+                maxWinDuration, minWinDuration, maxLossDuration, minLossDuration,
+                sharpeRatio, profitFactor,
+                hourlyStats, symbolStats, weekdayStats, weekdays
+            };
+        }
+
+        function calculateAdvancedMetrics(trades) {
+            if (trades.length === 0) {
+                return { sharpeRatio: 0, profitFactor: 0 };
+            }
+
+            // シャープレシオの計算
+            const profits = trades.map(t => t.profit);
+            const meanReturn = profits.reduce((sum, p) => sum + p, 0) / profits.length;
+            
+            // 標準偏差の計算
+            const variance = profits.reduce((sum, p) => sum + Math.pow(p - meanReturn, 2), 0) / profits.length;
+            const standardDeviation = Math.sqrt(variance);
+            
+            // リスクフリーレート（0%と仮定）
+            const riskFreeRate = 0;
+            
+            // シャープレシオ = (平均リターン - リスクフリーレート) / 標準偏差
+            const sharpeRatio = standardDeviation > 0 ? (meanReturn - riskFreeRate) / standardDeviation : 0;
+
+            // プロフィットファクターの計算
+            const totalWinAmount = trades.filter(t => t.isWin).reduce((sum, t) => sum + t.profit, 0);
+            const totalLossAmount = Math.abs(trades.filter(t => !t.isWin).reduce((sum, t) => sum + t.profit, 0));
+            const profitFactor = totalLossAmount > 0 ? totalWinAmount / totalLossAmount : (totalWinAmount > 0 ? 999 : 0);
+
+            return {
+                sharpeRatio: isFinite(sharpeRatio) ? sharpeRatio : 0,
+                profitFactor: isFinite(profitFactor) ? profitFactor : 0
+            };
+        }
+        
+        function displayMetrics(stats) {
+            document.getElementById('totalTrades').textContent = `${stats.totalTrades}回`;
+            document.getElementById('winRate').textContent = stats.winRatePercent + '%';
+            document.getElementById('totalProfit').textContent = `¥${Math.round(stats.totalProfit).toLocaleString()}`;
+            document.getElementById('totalProfit').className = `metric-value ${stats.totalProfit >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('avgProfit').textContent = `¥${Math.round(stats.avgProfit).toLocaleString()}`;
+            document.getElementById('avgLoss').textContent = `¥${Math.round(stats.avgLoss).toLocaleString()}`;
+            document.getElementById('riskReward').textContent = stats.riskReward;
+            document.getElementById('maxWinStreak').textContent = `${stats.maxWinStreak}回`;
+            document.getElementById('maxLossStreak').textContent = `${stats.maxLossStreak}回`;
+            document.getElementById('avgWinDuration').textContent = formatDuration(stats.avgWinDuration);
+            document.getElementById('avgLossDuration').textContent = formatDuration(stats.avgLossDuration);
+            
+            // シャープレシオの表示と評価
+            const sharpeValue = stats.sharpeRatio.toFixed(3);
+            document.getElementById('sharpeRatio').textContent = sharpeValue;
+            document.getElementById('sharpeRatio').className = getSharpeRatioClass(stats.sharpeRatio);
+            
+            // プロフィットファクターの表示と評価
+            const pfValue = stats.profitFactor.toFixed(2);
+            document.getElementById('profitFactor').textContent = pfValue;
+            document.getElementById('profitFactor').className = getProfitFactorClass(stats.profitFactor);
+        }
+
+        function getSharpeRatioClass(sharpeRatio) {
+            if (sharpeRatio >= 1.5) return 'metric-value positive';      // 優秀
+            if (sharpeRatio >= 1.0) return 'metric-value neutral';       // 良好
+            if (sharpeRatio >= 0.5) return 'metric-value neutral';       // 普通
+            return 'metric-value negative';                               // 要改善
+        }
+
+        function getProfitFactorClass(profitFactor) {
+            if (profitFactor >= 1.25) return 'metric-value positive';    // 良好
+            if (profitFactor >= 1.0) return 'metric-value neutral';      // 損益分岐点以上
+            return 'metric-value negative';                               // 損失
+        }
+
+        function displayTradeDistribution(stats) {
+            const winStatsEl = document.getElementById('winTradeStats');
+            const lossStatsEl = document.getElementById('lossTradeStats');
+            
+            winStatsEl.innerHTML = `
+                <div><strong>取引回数:</strong> ${stats.winTrades}回</div>
+                <div><strong>平均利益:</strong> ¥${Math.round(stats.avgProfit).toLocaleString()}</div>
+                <div><strong>最大利益:</strong> ¥${Math.round(stats.maxWin).toLocaleString()}</div>
+                <div><strong>最小利益:</strong> ¥${Math.round(stats.minWin).toLocaleString()}</div>
+                <div><strong>平均保有時間:</strong> ${formatDuration(stats.avgWinDuration)}</div>
+                <div><strong>最長保有時間:</strong> ${formatDuration(stats.maxWinDuration)}</div>
+                <div><strong>最短保有時間:</strong> ${formatDuration(stats.minWinDuration)}</div>
+            `;
+            
+            lossStatsEl.innerHTML = `
+                <div><strong>取引回数:</strong> ${stats.lossTrades}回</div>
+                <div><strong>平均損失:</strong> ¥${Math.round(stats.avgLoss).toLocaleString()}</div>
+                <div><strong>最大損失:</strong> ¥${Math.round(stats.maxLoss).toLocaleString()}</div>
+                <div><strong>最小損失:</strong> ¥${Math.round(stats.minLoss).toLocaleString()}</div>
+                <div><strong>平均保有時間:</strong> ${formatDuration(stats.avgLossDuration)}</div>
+                <div><strong>最長保有時間:</strong> ${formatDuration(stats.maxLossDuration)}</div>
+                <div><strong>最短保有時間:</strong> ${formatDuration(stats.minLossDuration)}</div>
+            `;
+        }
+
+        function formatDuration(milliseconds) {
+            if (!milliseconds || milliseconds === 0) return '0分';
+            
+            const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+            const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+            
+            if (hours > 0) {
+                return `${hours}時間${minutes}分`;
+            } else {
+                return `${minutes}分`;
+            }
+        }
+
+        function createChart(canvasId, chartCreator) {
+            const chart = chartCreator(document.getElementById(canvasId).getContext('2d'));
+            if (chart) activeCharts.push(chart);
+        }
+        
+        function createProfitChart(ctx, currentTrades) {
+            let cumulative = 0;
+            const data = currentTrades.map(t => cumulative += t.profit);
+            return new Chart(ctx, { type: 'line', data: { labels: currentTrades.map((_, i) => i + 1), datasets: [{ label: '累積損益', data, borderColor: 'rgb(102, 126, 234)', backgroundColor: 'rgba(102, 126, 234, 0.1)', tension: 0.1, pointRadius: 0 }] }, options: { responsive: true, scales: { x: { title: { display: true, text: '取引回数' }}, y: { title: { display: true, text: '損益 (¥)' }}}} });
+        }
+        
+        function createSymbolAnalysisChart(ctx, allSymbolStats) {
+            const sorted = Object.entries(allSymbolStats).sort((a, b) => b[1].count - a[1].count).slice(0, 15);
+            const labels = sorted.map(e => e[0]), profitData = sorted.map(e => e[1].profit), countData = sorted.map(e => e[1].count);
+            
+            const chart = new Chart(ctx, { 
+                type: 'bar', 
+                data: { 
+                    labels, 
+                    datasets: [
+                        { 
+                            label: '総損益', 
+                            data: profitData, 
+                            backgroundColor: profitData.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'), 
+                            yAxisID: 'y' 
+                        }, 
+                        { 
+                            label: '取引回数', 
+                            data: countData, 
+                            type: 'line', 
+                            borderColor: '#ffc107', 
+                            yAxisID: 'y1' 
+                        }
+                    ] 
+                }, 
+                options: { 
+                    responsive: true, 
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const symbol = labels[index];
+                            showSymbolDrillDown(symbol);
+                        }
+                    },
+                    scales: { 
+                        y: { position: 'left', title: { display: true, text: '損益 (¥)' }}, 
+                        y1: { position: 'right', title: { display: true, text: '取引回数' }, grid: { drawOnChartArea: false }, min: 0 } 
+                    } 
+                } 
+            });
+            
+            return chart;
+        }
+
+        function createTimeAnalysisChart(ctx, hourlyStats) {
+            const labels = Array.from({length: 24}, (_, i) => `${i}時`);
+            const profitData = Array(24).fill(0), countData = Array(24).fill(0);
+            for(const hour in hourlyStats){ profitData[hour] = hourlyStats[hour].profit; countData[hour] = hourlyStats[hour].count; }
+            
+            const chart = new Chart(ctx, { 
+                type: 'bar', 
+                data: { 
+                    labels, 
+                    datasets: [
+                        { 
+                            label: '総損益', 
+                            data: profitData, 
+                            backgroundColor: profitData.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'), 
+                            yAxisID: 'y' 
+                        }, 
+                        { 
+                            label: '取引回数', 
+                            data: countData, 
+                            type: 'line', 
+                            borderColor: '#ffc107', 
+                            yAxisID: 'y1' 
+                        }
+                    ] 
+                }, 
+                options: { 
+                    responsive: true,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const hour = index;
+                            showTimeDrillDown(hour);
+                        }
+                    },
+                    scales: { 
+                        x: { title: { display: true, text: '時間帯（日本時間）' }}, 
+                        y: { position: 'left', title: { display: true, text: '損益 (¥)' }}, 
+                        y1: { position: 'right', title: { display: true, text: '取引回数' }, grid: { drawOnChartArea: false }, min: 0 } 
+                    } 
+                } 
+            });
+            
+            return chart;
+        }
+
+        function createWeekdayAnalysisChart(ctx, stats) {
+            const profitData = stats.weekdays.map((_, i) => stats.weekdayStats[i]?.profit || 0);
+            const countData = stats.weekdays.map((_, i) => stats.weekdayStats[i]?.count || 0);
+            
+            const chart = new Chart(ctx, { 
+                type: 'bar', 
+                data: { 
+                    labels: stats.weekdays, 
+                    datasets: [
+                        { 
+                            label: '総損益', 
+                            data: profitData, 
+                            backgroundColor: profitData.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'), 
+                            yAxisID: 'y' 
+                        }, 
+                        { 
+                            label: '取引回数', 
+                            data: countData, 
+                            type: 'line', 
+                            borderColor: '#ffc107', 
+                            yAxisID: 'y1' 
+                        }
+                    ] 
+                }, 
+                options: { 
+                    responsive: true,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const weekday = index;
+                            showWeekdayDrillDown(weekday);
+                        }
+                    },
+                    scales: { 
+                        y: { position: 'left', title: { display: true, text: '損益 (¥)' }}, 
+                        y1: { position: 'right', title: { display: true, text: '取引回数' }, grid: { drawOnChartArea: false }, min: 0 } 
+                    } 
+                } 
+            });
+            
+            return chart;
+        }
+
+        function createProfitDistributionChart(ctx, currentTrades) {
+            // 損益を範囲別に分類
+            const ranges = [
+                { min: -Infinity, max: -50000, label: '-5万円以下' },
+                { min: -50000, max: -20000, label: '-5万〜-2万円' },
+                { min: -20000, max: -10000, label: '-2万〜-1万円' },
+                { min: -10000, max: -5000, label: '-1万〜-5千円' },
+                { min: -5000, max: 0, label: '-5千円〜0円' },
+                { min: 0, max: 5000, label: '0〜5千円' },
+                { min: 5000, max: 10000, label: '5千〜1万円' },
+                { min: 10000, max: 20000, label: '1万〜2万円' },
+                { min: 20000, max: 50000, label: '2万〜5万円' },
+                { min: 50000, max: Infinity, label: '5万円以上' }
+            ];
+
+            const distribution = ranges.map(range => ({
+                label: range.label,
+                count: currentTrades.filter(t => t.profit > range.min && t.profit <= range.max).length,
+                range: range
+            }));
+
+            const labels = distribution.map(d => d.label);
+            const data = distribution.map(d => d.count);
+            const colors = data.map((_, i) => i < 5 ? 'rgba(239, 68, 68, 0.8)' : 'rgba(16, 185, 129, 0.8)');
+
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '取引回数',
+                        data: data,
+                        backgroundColor: colors,
+                        borderColor: colors.map(c => c.replace('0.8', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const selectedRange = ranges[index];
+                            showProfitRangeDrillDown(selectedRange, currentTrades);
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '損益範囲' }
+                        },
+                        y: {
+                            title: { display: true, text: '取引回数' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            return chart;
+        }
+
+        function showHelp(title) {
+            popupTitle.textContent = title;
+            popupBody.textContent = helpTexts[title] || '説明が見つかりません。';
+            popupOverlay.style.display = 'flex';
+        }
+
+        function closePopup() {
+            popupOverlay.style.display = 'none';
+        }
+
+        function showSymbolDrillDown(symbol) {
+            const symbolTrades = allTrades.filter(t => t.symbol === symbol);
+            if (symbolTrades.length === 0) return;
+
+            sidePanelTitle.textContent = `${symbol} 詳細分析`;
+            
+            // 基本統計を計算
+            const symbolStats = calculateStatistics(symbolTrades);
+            
+            // 月別データを計算
+            const monthlyStats = calculateMonthlyStats(symbolTrades);
+            
+            // サイドパネルの内容を構築
+            sidePanelContent.innerHTML = `
+                <div class="drill-section">
+                    <h3>基本統計</h3>
+                    <div class="drill-stats">
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${symbolStats.totalTrades}回</div>
+                            <div class="drill-stat-label">取引回数</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${symbolStats.winRatePercent}%</div>
+                            <div class="drill-stat-label">勝率</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value ${symbolStats.totalProfit >= 0 ? 'positive' : 'negative'}">¥${Math.round(symbolStats.totalProfit).toLocaleString()}</div>
+                            <div class="drill-stat-label">総損益</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${formatDuration((symbolStats.avgWinDuration + symbolStats.avgLossDuration) / 2)}</div>
+                            <div class="drill-stat-label">平均保有時間</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>時間帯別パフォーマンス（日本時間）</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillHourlyChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>曜日別パフォーマンス</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillWeekdayChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>月別トレンド</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillMonthlyChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>損益分布</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillProfitDistChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            // サイドパネルを表示
+            sidePanelOverlay.style.display = 'block';
+            sidePanel.classList.add('open');
+            
+            // チャートを作成（少し遅延させてDOMが準備されるのを待つ）
+            setTimeout(() => {
+                createDrillDownCharts(symbolTrades, symbolStats, monthlyStats);
+            }, 100);
+        }
+
+        function calculateMonthlyStats(trades) {
+            const monthlyData = {};
+            trades.forEach(trade => {
+                const month = `${trade.openTime.getFullYear()}-${String(trade.openTime.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyData[month]) {
+                    monthlyData[month] = { profit: 0, count: 0, wins: 0 };
+                }
+                monthlyData[month].profit += trade.profit;
+                monthlyData[month].count++;
+                if (trade.isWin) monthlyData[month].wins++;
+            });
+            return monthlyData;
+        }
+
+        function createDrillDownCharts(symbolTrades, symbolStats, monthlyStats) {
+            // 時間帯別チャート
+            const hourlyCtx = document.getElementById('drillHourlyChart');
+            if (hourlyCtx) {
+                const hourlyData = Array(24).fill(0);
+                const hourlyCount = Array(24).fill(0);
+                Object.entries(symbolStats.hourlyStats).forEach(([hour, stats]) => {
+                    hourlyData[hour] = stats.profit;
+                    hourlyCount[hour] = stats.count;
+                });
+                
+                new Chart(hourlyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Array.from({length: 24}, (_, i) => `${i}時`),
+                        datasets: [{
+                            label: '損益',
+                            data: hourlyData,
+                            backgroundColor: hourlyData.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { 
+                            x: { title: { display: true, text: '時間帯（日本時間）' }},
+                            y: { beginAtZero: true } 
+                        }
+                    }
+                });
+            }
+            
+            // 曜日別チャート
+            const weekdayCtx = document.getElementById('drillWeekdayChart');
+            if (weekdayCtx) {
+                const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+                const weekdayData = weekdays.map((_, i) => symbolStats.weekdayStats[i]?.profit || 0);
+                
+                new Chart(weekdayCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: weekdays,
+                        datasets: [{
+                            label: '損益',
+                            data: weekdayData,
+                            backgroundColor: weekdayData.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            
+            // 月別チャート
+            const monthlyCtx = document.getElementById('drillMonthlyChart');
+            if (monthlyCtx) {
+                const monthLabels = Object.keys(monthlyStats).sort();
+                const monthlyProfits = monthLabels.map(month => monthlyStats[month].profit);
+                
+                new Chart(monthlyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: monthLabels,
+                        datasets: [{
+                            label: '月別損益',
+                            data: monthlyProfits,
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            
+            // 損益分布チャート
+            const profitDistCtx = document.getElementById('drillProfitDistChart');
+            if (profitDistCtx) {
+                createProfitDistributionChart(profitDistCtx.getContext('2d'), symbolTrades);
+            }
+        }
+
+        function closeSidePanel() {
+            sidePanel.classList.remove('open');
+            sidePanelOverlay.style.display = 'none';
+        }
+
+        function showProfitRangeDrillDown(range, allCurrentTrades) {
+            const rangeTrades = allCurrentTrades.filter(t => t.profit > range.min && t.profit <= range.max);
+            if (rangeTrades.length === 0) {
+                alert('この損益範囲にはトレードデータがありません。');
+                return;
+            }
+
+            const isPositiveRange = range.min >= 0;
+            const rangeTitle = isPositiveRange ? `利益: ${range.label}` : `損失: ${range.label}`;
+            
+            sidePanelTitle.textContent = `${rangeTitle} 詳細分析`;
+            
+            // この範囲のトレードを分析
+            const analysis = analyzeProfitRangePattern(rangeTrades, isPositiveRange);
+            
+            sidePanelContent.innerHTML = `
+                <div class="drill-section">
+                    <h3>基本統計</h3>
+                    <div class="drill-stats">
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${rangeTrades.length}回</div>
+                            <div class="drill-stat-label">該当取引数</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">¥${Math.round(analysis.avgProfit).toLocaleString()}</div>
+                            <div class="drill-stat-label">平均${isPositiveRange ? '利益' : '損失'}</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${formatDuration(analysis.avgDuration)}</div>
+                            <div class="drill-stat-label">平均保有時間</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${analysis.topSymbol}</div>
+                            <div class="drill-stat-label">最多通貨ペア</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>通貨ペア別分布</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillRangeSymbolChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>時間帯別分布（日本時間）</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillRangeTimeChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>曜日別分布</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillRangeWeekdayChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>該当取引リスト</h3>
+                    <div class="drill-trade-list">
+                        ${rangeTrades.slice(0, 10).map(trade => `
+                            <div class="drill-trade-item">
+                                <div class="trade-info">
+                                    <div class="trade-symbol">${trade.symbol}</div>
+                                    <div class="trade-date">${formatTradeDate(trade.openTime)} (${formatDuration(trade.duration)})</div>
+                                </div>
+                                <div class="trade-profit ${trade.profit >= 0 ? 'positive' : 'negative'}">
+                                    ¥${Math.round(trade.profit).toLocaleString()}
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${rangeTrades.length > 10 ? `<div style="text-align: center; color: #6b7280; padding: 10px;">他 ${rangeTrades.length - 10}件</div>` : ''}
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>${isPositiveRange ? '成功パターン分析' : '失敗パターン分析'}</h3>
+                    <div class="drill-insights">
+                        <h4>主な特徴</h4>
+                        <ul>
+                            ${analysis.insights.map(insight => `<li>${insight}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ${isPositiveRange ? `
+                        <div class="drill-insights" style="background: #f0fdf4; border-left-color: #22c55e;">
+                            <h4>再現のためのコツ</h4>
+                            <ul>
+                                ${analysis.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : `
+                        <div class="drill-insights" style="background: #fef2f2; border-left-color: #ef4444;">
+                            <h4>改善提案</h4>
+                            <ul>
+                                ${analysis.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `}
+                </div>
+            `;
+            
+            // サイドパネルを表示
+            sidePanelOverlay.style.display = 'block';
+            sidePanel.classList.add('open');
+            
+            // チャートを作成
+            setTimeout(() => {
+                createProfitRangeDrillDownCharts(rangeTrades, analysis);
+            }, 100);
+        }
+
+        function analyzeProfitRangePattern(trades, isPositiveRange) {
+            // 通貨ペア分析
+            const symbolStats = {};
+            trades.forEach(trade => {
+                if (!symbolStats[trade.symbol]) symbolStats[trade.symbol] = 0;
+                symbolStats[trade.symbol]++;
+            });
+            const topSymbol = Object.keys(symbolStats).reduce((a, b) => symbolStats[a] > symbolStats[b] ? a : b);
+            
+            // 時間帯分析
+            const hourStats = {};
+            trades.forEach(trade => {
+                const hour = trade.openTime.getHours();
+                if (!hourStats[hour]) hourStats[hour] = 0;
+                hourStats[hour]++;
+            });
+            const topHour = Object.keys(hourStats).reduce((a, b) => hourStats[a] > hourStats[b] ? a : b);
+            
+            // 曜日分析
+            const weekdayStats = {};
+            trades.forEach(trade => {
+                const weekday = trade.openTime.getDay();
+                if (!weekdayStats[weekday]) weekdayStats[weekday] = 0;
+                weekdayStats[weekday]++;
+            });
+            const topWeekday = Object.keys(weekdayStats).reduce((a, b) => weekdayStats[a] > weekdayStats[b] ? a : b);
+            const weekdayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+            
+            // 保有時間分析
+            const avgDuration = trades.reduce((sum, t) => sum + t.duration, 0) / trades.length;
+            const avgProfit = trades.reduce((sum, t) => sum + Math.abs(t.profit), 0) / trades.length;
+            
+            // インサイト生成
+            const insights = [
+                `最も多い通貨ペア: ${topSymbol} (${symbolStats[topSymbol]}回, ${(symbolStats[topSymbol]/trades.length*100).toFixed(1)}%)`,
+                `最も多い時間帯: ${topHour}時台（日本時間） (${hourStats[topHour]}回, ${(hourStats[topHour]/trades.length*100).toFixed(1)}%)`,
+                `最も多い曜日: ${weekdayNames[topWeekday]} (${weekdayStats[topWeekday]}回, ${(weekdayStats[topWeekday]/trades.length*100).toFixed(1)}%)`,
+                `平均保有時間: ${formatDuration(avgDuration)}`
+            ];
+            
+            // 推奨事項生成
+            let recommendations;
+            if (isPositiveRange) {
+                recommendations = [
+                    `${topSymbol}での取引を重点的に行う`,
+                    `${topHour}時台（日本時間）のエントリーを狙う`,
+                    `${weekdayNames[topWeekday]}の取引機会を増やす`,
+                    `保有時間${formatDuration(avgDuration)}前後での利確を心がける`
+                ];
+            } else {
+                recommendations = [
+                    `${topSymbol}での取引戦略を見直す`,
+                    `${topHour}時台（日本時間）の取引は慎重に行う`,
+                    `${weekdayNames[topWeekday]}の市場状況をより注意深く分析する`,
+                    `保有時間${formatDuration(avgDuration)}以内での損切りを検討する`
+                ];
+            }
+            
+            return {
+                symbolStats,
+                hourStats,
+                weekdayStats,
+                avgDuration,
+                avgProfit: isPositiveRange ? avgProfit : -avgProfit,
+                topSymbol,
+                insights,
+                recommendations
+            };
+        }
+
+        function createProfitRangeDrillDownCharts(trades, analysis) {
+            // 通貨ペア別チャート
+            const symbolCtx = document.getElementById('drillRangeSymbolChart');
+            if (symbolCtx) {
+                const symbolLabels = Object.keys(analysis.symbolStats);
+                const symbolData = Object.values(analysis.symbolStats);
+                
+                new Chart(symbolCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: symbolLabels,
+                        datasets: [{
+                            data: symbolData,
+                            backgroundColor: [
+                                '#3b82f6', '#ef4444', '#10b981', '#f59e0b', 
+                                '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+            }
+            
+            // 時間帯別チャート
+            const timeCtx = document.getElementById('drillRangeTimeChart');
+            if (timeCtx) {
+                const hourData = Array(24).fill(0);
+                Object.entries(analysis.hourStats).forEach(([hour, count]) => {
+                    hourData[hour] = count;
+                });
+                
+                new Chart(timeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Array.from({length: 24}, (_, i) => `${i}時`),
+                        datasets: [{
+                            label: '取引回数',
+                            data: hourData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { 
+                            x: { title: { display: true, text: '時間帯（日本時間）' }},
+                            y: { beginAtZero: true } 
+                        }
+                    }
+                });
+            }
+            
+            // 曜日別チャート
+            const weekdayCtx = document.getElementById('drillRangeWeekdayChart');
+            if (weekdayCtx) {
+                const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+                const weekdayData = weekdays.map((_, i) => analysis.weekdayStats[i] || 0);
+                
+                new Chart(weekdayCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: weekdays,
+                        datasets: [{
+                            label: '取引回数',
+                            data: weekdayData,
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        }
+
+function showWeekdayDrillDown(weekday) {
+    const weekdayTrades = allTrades.filter(t => t.openTime.getDay() === weekday);
+    if (weekdayTrades.length === 0) {
+        alert('この曜日にはトレードデータがありません。');
+        return;
+    }
+
+    const weekdayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+    const weekdayTitle = `${weekdayNames[weekday]} 詳細分析`;
+    sidePanelTitle.textContent = weekdayTitle;
+    
+    // この曜日のトレードを分析
+    const analysis = analyzeWeekdayPattern(weekdayTrades, weekday, weekdayNames[weekday]);
+    
+    // 3行サマリーの生成
+    const threeSummary = generateWeekdayThreeSummary(analysis, weekdayNames[weekday]);
+    
+    // 200文字分析の生成
+    const trendAnalysis = generateWeekdayTrendAnalysis(analysis, weekdayNames[weekday]);
+    
+    sidePanelContent.innerHTML = `
+        <!-- 3行サマリー（青枠） -->
+        <div class="drill-section">
+            <h3 style="color: #2196f3; border-bottom: 2px solid #2196f3;">📊 3行サマリー</h3>
+            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 2px solid #2196f3; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <ul style="list-style: none; padding: 0; margin: 0; line-height: 1.8;">
+                    <li style="margin-bottom: 8px; padding-left: 20px; position: relative;">
+                        <span style="position: absolute; left: 0; color: #1976d2;">①</span>
+                        ${threeSummary.overview}
+                    </li>
+                    <li style="margin-bottom: 8px; padding-left: 20px; position: relative;">
+                        <span style="position: absolute; left: 0; color: #1976d2;">②</span>
+                        ${threeSummary.strength}
+                    </li>
+                    <li style="margin-bottom: 8px; padding-left: 20px; position: relative;">
+                        <span style="position: absolute; left: 0; color: #1976d2;">③</span>
+                        ${threeSummary.weakness}
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- あなたのトレード傾向（オレンジ枠） -->
+        <div class="drill-section">
+            <h3 style="color: #f57c00; border-bottom: 2px solid #f57c00;">🎯 あなたのトレード傾向</h3>
+            <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border: 2px solid #ff9800; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <p style="margin: 0; line-height: 1.6; color: #e65100;">
+                    ${trendAnalysis}
+                </p>
+            </div>
+        </div>
+
+        <div class="drill-section">
+            <h3>基本統計</h3>
+            <div class="drill-stats">
+                <div class="drill-stat-item">
+                    <div class="drill-stat-value">${weekdayTrades.length}回</div>
+                    <div class="drill-stat-label">取引回数</div>
+                </div>
+                <div class="drill-stat-item">
+                    <div class="drill-stat-value">${analysis.winRate}%</div>
+                    <div class="drill-stat-label">勝率</div>
+                </div>
+                <div class="drill-stat-item">
+                    <div class="drill-stat-value ${analysis.totalProfit >= 0 ? 'positive' : 'negative'}">¥${Math.round(analysis.totalProfit).toLocaleString()}</div>
+                    <div class="drill-stat-label">総損益</div>
+                </div>
+                <div class="drill-stat-item">
+                    <div class="drill-stat-value">${analysis.topSymbol}</div>
+                    <div class="drill-stat-label">最多通貨ペア</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>市場特性情報</h3>
+            <div class="drill-insights">
+                <h4>${weekdayNames[weekday]}の市場特徴</h4>
+                <ul>
+                    ${analysis.marketCharacteristics.map(info => `<li>${info}</li>`).join('')}
+                </ul>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>時間帯別詳細（日本時間）</h3>
+            <div class="drill-chart-container">
+                <canvas id="drillWeekdayTimeChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>通貨ペア別パフォーマンス</h3>
+            <div class="drill-chart-container">
+                <canvas id="drillWeekdaySymbolChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>エントリー時刻分布</h3>
+            <div class="drill-chart-container">
+                <canvas id="drillWeekdayEntryChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>決済時刻分布</h3>
+            <div class="drill-chart-container">
+                <canvas id="drillWeekdayExitChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>保有時間分析</h3>
+            <div class="drill-chart-container">
+                <canvas id="drillWeekdayDurationChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>${weekdayNames[weekday]}の取引リスト</h3>
+            <div class="drill-trade-list">
+                ${weekdayTrades.slice(0, 12).map(trade => `
+                    <div class="drill-trade-item">
+                        <div class="trade-info">
+                            <div class="trade-symbol">${trade.symbol} (${trade.type.toUpperCase()})</div>
+                            <div class="trade-date">${formatTradeDate(trade.openTime)} → ${formatTradeDate(trade.closeTime)}</div>
+                            <div style="font-size: 0.8em; color: #6b7280;">保有: ${formatDuration(trade.duration)}</div>
+                        </div>
+                        <div class="trade-profit ${trade.profit >= 0 ? 'positive' : 'negative'}">
+                            ¥${Math.round(trade.profit).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('')}
+                ${weekdayTrades.length > 12 ? `<div style="text-align: center; color: #6b7280; padding: 10px;">他 ${weekdayTrades.length - 12}件</div>` : ''}
+            </div>
+        </div>
+        
+        <div class="drill-section">
+            <h3>${weekdayNames[weekday]}のパフォーマンス分析</h3>
+            <div class="drill-insights">
+                <h4>主な特徴</h4>
+                <ul>
+                    ${analysis.insights.map(insight => `<li>${insight}</li>`).join('')}
+                </ul>
+            </div>
+            <div class="drill-insights" style="background: ${analysis.totalProfit >= 0 ? '#f0fdf4' : '#fef2f2'}; border-left-color: ${analysis.totalProfit >= 0 ? '#22c55e' : '#ef4444'};">
+                <h4>${weekdayNames[weekday]}の${analysis.totalProfit >= 0 ? '活用戦略' : '注意点と改善策'}</h4>
+                <ul>
+                    ${analysis.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    // サイドパネルを表示
+    sidePanelOverlay.style.display = 'block';
+    sidePanel.classList.add('open');
+    
+    // チャートを作成
+    setTimeout(() => {
+        createWeekdayDrillDownCharts(weekdayTrades, analysis, weekday);
+    }, 100);
+}
+
+// 3行サマリー生成関数（元HTMLファイルのデータ構造に対応）
+function generateWeekdayThreeSummary(analysis, weekdayName) {
+    const winRate = parseFloat(analysis.winRate);
+    const totalProfit = analysis.totalProfit;
+    const topSymbol = analysis.topSymbol;
+    const topHour = analysis.topHour;
+    
+    // 概要（勝率・損益・件数）
+    let overview;
+    if (winRate >= 70) {
+        overview = `${weekdayName}は勝率約7割で収益性が高い曜日`;
+    } else if (winRate >= 60) {
+        overview = `${weekdayName}は勝率6割台で安定した成績`;
+    } else if (winRate >= 50) {
+        overview = `${weekdayName}は勝率5割台で平均的な成績`;
+    } else {
+        overview = `${weekdayName}は勝率${Math.round(winRate/10)*10}%台で改善余地あり`;
+    }
+    
+    // 強み（通貨ペア/時間帯）
+    const profitDisplay = totalProfit >= 500000 ? `${Math.round(totalProfit/10000)}万円超` : 
+                         totalProfit >= 100000 ? `${Math.round(totalProfit/10000)}万円台` : 
+                         totalProfit >= 10000 ? `${Math.round(totalProfit/1000)}万円台` :
+                         `${Math.round(totalProfit/1000)}千円`;
+    
+    let strength;
+    if (totalProfit > 0) {
+        strength = `${topSymbol}と${topHour}時台が主力で${profitDisplay}の利益`;
+    } else {
+        strength = `${topSymbol}での取引が中心、${topHour}時台に活動集中`;
+    }
+    
+    // 弱み/注意点
+    let weakness;
+    if (totalProfit < 0) {
+        weakness = `損失が利益を上回り、慎重な取引が必要`;
+    } else if (winRate < 50) {
+        weakness = `勝率が低く、リスク管理の改善余地あり`;
+    } else if (winRate < 60) {
+        weakness = `勝率向上でさらなる安定収益を目指せる`;
+    } else {
+        weakness = `重要イベント時は注意が必要`;
+    }
+    
+    return {
+        overview,
+        strength,
+        weakness
+    };
+}
+
+// 200文字トレード傾向分析生成関数（元HTMLファイルのデータ構造に対応）
+function generateWeekdayTrendAnalysis(analysis, weekdayName) {
+    const winRate = parseFloat(analysis.winRate);
+    const totalProfit = analysis.totalProfit;
+    const topSymbol = analysis.topSymbol;
+    const topHour = analysis.topHour;
+    
+    // 基本的な成果認定
+    let baseAssessment;
+    if (winRate >= 65 && totalProfit > 0) {
+        baseAssessment = `${weekdayName}は勝率${Math.round(winRate)}%と優秀で、${Math.round(totalProfit/10000)}万円の利益を堅実に積み重ねています。`;
+    } else if (winRate >= 55 && totalProfit > 0) {
+        baseAssessment = `${weekdayName}は勝率${Math.round(winRate)}%でまずまずの成績を残し、${Math.round(totalProfit/10000)}万円のプラス収支です。`;
+    } else if (totalProfit > 0) {
+        baseAssessment = `${weekdayName}は勝率${Math.round(winRate)}%ながらも${Math.round(totalProfit/10000)}万円のプラス収支を維持しています。`;
+    } else {
+        baseAssessment = `${weekdayName}は勝率${Math.round(winRate)}%で改善の余地があります。`;
+    }
+    
+    // 強みの評価
+    let strengthEval;
+    if (totalProfit > 0) {
+        strengthEval = `特に${topHour}時台の${topSymbol}取引は大きな武器となっており、`;
+    } else {
+        strengthEval = `${topHour}時台の${topSymbol}取引パターンを見直すことで、`;
+    }
+    
+    // 改善点と提案
+    let improvement;
+    if (totalProfit > 0 && winRate >= 60) {
+        improvement = `この成功パターンをさらに伸ばせば、より効率的な収益拡大が期待できます。`;
+    } else if (totalProfit > 0) {
+        improvement = `勝率向上に集中すれば、さらに安定した収益基盤を築けるでしょう。`;
+    } else {
+        improvement = `損失要因を特定し、リスク管理を徹底することが急務です。`;
+    }
+    
+    return baseAssessment + strengthEval + improvement;
+}
+
+        function analyzeDurationPattern(trades, range) {
+            const winTrades = trades.filter(t => t.isWin);
+            const lossTrades = trades.filter(t => !t.isWin);
+            const winRate = trades.length > 0 ? ((winTrades.length / trades.length) * 100).toFixed(1) : '0.0';
+            const totalProfit = trades.reduce((sum, t) => sum + t.profit, 0);
+            
+            // 平均保有時間
+            const avgDuration = trades.reduce((sum, t) => sum + t.duration, 0) / trades.length;
+            
+            // 勝ち負け別詳細分析
+            const avgWinProfit = winTrades.length > 0 ? winTrades.reduce((sum, t) => sum + t.profit, 0) / winTrades.length : 0;
+            const avgLossProfit = lossTrades.length > 0 ? Math.abs(lossTrades.reduce((sum, t) => sum + t.profit, 0) / lossTrades.length) : 0;
+            const avgWinDuration = winTrades.length > 0 ? winTrades.reduce((sum, t) => sum + t.duration, 0) / winTrades.length : 0;
+            const avgLossDuration = lossTrades.length > 0 ? lossTrades.reduce((sum, t) => sum + t.duration, 0) / lossTrades.length : 0;
+            
+            // 通貨ペア分析
+            const symbolStats = {};
+            const winSymbolStats = {};
+            const lossSymbolStats = {};
+            
+            trades.forEach(trade => {
+                if (!symbolStats[trade.symbol]) symbolStats[trade.symbol] = { count: 0, profit: 0 };
+                symbolStats[trade.symbol].count++;
+                symbolStats[trade.symbol].profit += trade.profit;
+                
+                if (trade.isWin) {
+                    if (!winSymbolStats[trade.symbol]) winSymbolStats[trade.symbol] = 0;
+                    winSymbolStats[trade.symbol]++;
+                } else {
+                    if (!lossSymbolStats[trade.symbol]) lossSymbolStats[trade.symbol] = 0;
+                    lossSymbolStats[trade.symbol]++;
+                }
+            });
+            
+            const topWinSymbol = Object.keys(winSymbolStats).length > 0 ? 
+                Object.keys(winSymbolStats).reduce((a, b) => winSymbolStats[a] > winSymbolStats[b] ? a : b) : 'なし';
+            const topLossSymbol = Object.keys(lossSymbolStats).length > 0 ? 
+                Object.keys(lossSymbolStats).reduce((a, b) => lossSymbolStats[a] > lossSymbolStats[b] ? a : b) : 'なし';
+            
+            // 時間帯分析
+            const hourStats = {};
+            const winHourStats = {};
+            const lossHourStats = {};
+            
+            trades.forEach(trade => {
+                const hour = trade.openTime.getHours();
+                if (!hourStats[hour]) hourStats[hour] = { count: 0, profit: 0 };
+                hourStats[hour].count++;
+                hourStats[hour].profit += trade.profit;
+                
+                if (trade.isWin) {
+                    if (!winHourStats[hour]) winHourStats[hour] = 0;
+                    winHourStats[hour]++;
+                } else {
+                    if (!lossHourStats[hour]) lossHourStats[hour] = 0;
+                    lossHourStats[hour]++;
+                }
+            });
+            
+            const topWinHour = Object.keys(winHourStats).length > 0 ? 
+                Object.keys(winHourStats).reduce((a, b) => winHourStats[a] > winHourStats[b] ? a : b) : 0;
+            const topLossHour = Object.keys(lossHourStats).length > 0 ? 
+                Object.keys(lossHourStats).reduce((a, b) => lossHourStats[a] > lossHourStats[b] ? a : b) : 0;
+            
+            // 決済理由分析（推定）
+            const exitReasons = analyzeExitReasons(trades, range);
+            
+            // インサイト生成
+            const durationCategory = getDurationCategory(range);
+            const insights = [
+                `${durationCategory.type}の保有時間での勝率: ${winRate}%`,
+                `この時間帯での平均損益: ¥${Math.round(totalProfit / trades.length).toLocaleString()}`,
+                `勝ちトレードと負けトレードの保有時間差: ${formatDuration(Math.abs(avgWinDuration - avgLossDuration))}`,
+                `最も成功しやすい通貨ペア: ${topWinSymbol} (勝ち${winSymbolStats[topWinSymbol] || 0}回)`
+            ];
+            
+            // 推奨事項生成
+            const recommendations = generateDurationRecommendations(range, winRate, avgWinDuration, avgLossDuration, durationCategory);
+            
+            return {
+                winRate,
+                totalProfit,
+                avgDuration,
+                winTrades: winTrades.length,
+                lossTrades: lossTrades.length,
+                avgWinProfit,
+                avgLossProfit,
+                avgWinDuration,
+                avgLossDuration,
+                topWinSymbol,
+                topLossSymbol,
+                topWinHour,
+                topLossHour,
+                symbolStats,
+                hourStats,
+                exitReasons,
+                insights,
+                recommendations
+            };
+        }
+
+        function getDurationCategory(range) {
+            if (range.max <= 60) {
+                return { type: 'スキャルピング', description: '短期売買' };
+            } else if (range.max <= 240) {
+                return { type: 'デイトレード', description: '日中取引' };
+            } else if (range.max <= 1440) {
+                return { type: 'スイングトレード', description: '数時間保有' };
+            } else {
+                return { type: 'ポジショントレード', description: '長期保有' };
+            }
+        }
+
+        function analyzeExitReasons(trades, range) {
+            // 決済理由を推定（実際のMT4データには理由がないため、パターンから推測）
+            const reasons = {
+                '利確': 0,
+                '損切り': 0,
+                '時間決済': 0
+            };
+            
+            trades.forEach(trade => {
+                if (trade.isWin) {
+                    reasons['利確']++;
+                } else {
+                    // 損失の場合、保有時間で判断
+                    const minutes = trade.duration / (1000 * 60);
+                    if (minutes < 30) {
+                        reasons['損切り']++;
+                    } else {
+                        reasons['時間決済']++;
+                    }
+                }
+            });
+            
+            return reasons;
+        }
+
+        function generateDurationRecommendations(range, winRate, avgWinDuration, avgLossDuration, category) {
+            const recommendations = [];
+            
+            if (parseFloat(winRate) >= 60) {
+                recommendations.push(`${category.type}での${range.label}保有は効果的な戦略`);
+                recommendations.push(`この保有時間範囲での取引機会を積極的に探す`);
+            } else {
+                recommendations.push(`${range.label}の保有は慎重に判断する必要あり`);
+                recommendations.push(`より短い保有時間での利確・損切りを検討`);
+            }
+            
+            if (avgWinDuration > avgLossDuration) {
+                recommendations.push('勝ちトレードをより長く保有する傾向は良好');
+                recommendations.push('損切りの速さを維持しながら、利確の忍耐力を活用');
+            } else {
+                recommendations.push('損失を長く抱えている傾向に注意');
+                recommendations.push('より早期の損切りルールの設定を検討');
+            }
+            
+            // 保有時間カテゴリ別のアドバイス
+            if (category.type === 'スキャルピング') {
+                recommendations.push('スプレッドの影響を最小化するため、ボラティリティの高い時間帯を狙う');
+            } else if (category.type === 'デイトレード') {
+                recommendations.push('市場セッションの切り替わり時間を活用した戦略を継続');
+            } else if (category.type === 'スイングトレード') {
+                recommendations.push('週末をまたぐリスクを考慮した資金管理を実施');
+            } else {
+                recommendations.push('経済指標やニュースの影響を長期的に監視');
+            }
+            
+            return recommendations;
+        }
+
+        function createDurationDrillDownCharts(trades, analysis, range) {
+            // 通貨ペア別チャート
+            const symbolCtx = document.getElementById('drillDurationSymbolChart');
+            if (symbolCtx) {
+                const symbolData = Object.entries(analysis.symbolStats)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 8);
+                
+                const symbolLabels = symbolData.map(([symbol]) => symbol);
+                const symbolCounts = symbolData.map(([, stats]) => stats.count);
+                
+                new Chart(symbolCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: symbolLabels,
+                        datasets: [{
+                            data: symbolCounts,
+                            backgroundColor: [
+                                '#3b82f6', '#ef4444', '#10b981', '#f59e0b', 
+                                '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+            }
+            
+            // 時間帯別チャート
+            const timeCtx = document.getElementById('drillDurationTimeChart');
+            if (timeCtx) {
+                const hourData = Array(24).fill(0);
+                Object.entries(analysis.hourStats).forEach(([hour, stats]) => {
+                    hourData[hour] = stats.count;
+                });
+                
+                new Chart(timeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Array.from({length: 24}, (_, i) => `${i}時`),
+                        datasets: [{
+                            label: '取引回数',
+                            data: hourData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { 
+                            x: { title: { display: true, text: 'エントリー時間帯（日本時間）' }},
+                            y: { beginAtZero: true } 
+                        }
+                    }
+                });
+            }
+            
+            // 決済理由チャート
+            const exitCtx = document.getElementById('drillExitReasonChart');
+            if (exitCtx) {
+                const exitLabels = Object.keys(analysis.exitReasons);
+                const exitData = Object.values(analysis.exitReasons);
+                
+                new Chart(exitCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: exitLabels,
+                        datasets: [{
+                            data: exitData,
+                            backgroundColor: [
+                                'rgba(16, 185, 129, 0.8)',
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(59, 130, 246, 0.8)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+            }
+        }
+
+        function formatTradeDate(date) {
+            return `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+        }
+
+        function showTimeDrillDown(hour) {
+            const hourTrades = allTrades.filter(t => t.openTime.getHours() === hour);
+            if (hourTrades.length === 0) {
+                alert('この時間帯にはトレードデータがありません。');
+                return;
+            }
+
+            const timeTitle = `${hour}:00-${hour}:59 詳細分析（日本時間）`;
+            sidePanelTitle.textContent = timeTitle;
+            
+            // この時間帯のトレードを分析
+            const analysis = analyzeTimeSlotPattern(hourTrades, hour);
+            
+            sidePanelContent.innerHTML = `
+                <div class="drill-section">
+                    <h3>基本統計</h3>
+                    <div class="drill-stats">
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${hourTrades.length}回</div>
+                            <div class="drill-stat-label">取引回数</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${analysis.winRate}%</div>
+                            <div class="drill-stat-label">勝率</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value ${analysis.totalProfit >= 0 ? 'positive' : 'negative'}">¥${Math.round(analysis.totalProfit).toLocaleString()}</div>
+                            <div class="drill-stat-label">総損益</div>
+                        </div>
+                        <div class="drill-stat-item">
+                            <div class="drill-stat-value">${analysis.topSymbol}</div>
+                            <div class="drill-stat-label">最多通貨ペア</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>市場セッション情報</h3>
+                    <div class="drill-insights">
+                        <h4>${hour}時台の市場特徴</h4>
+                        <ul>
+                            ${analysis.marketInfo.map(info => `<li>${info}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>通貨ペア別パフォーマンス</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillTimeSymbolChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>曜日別パフォーマンス</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillTimeWeekdayChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>エントリー vs 決済時刻分析</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillEntryExitChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>月別トレンド</h3>
+                    <div class="drill-chart-container">
+                        <canvas id="drillTimeMonthlyChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>この時間帯の取引リスト</h3>
+                    <div class="drill-trade-list">
+                        ${hourTrades.slice(0, 10).map(trade => `
+                            <div class="drill-trade-item">
+                                <div class="trade-info">
+                                    <div class="trade-symbol">${trade.symbol} (${trade.type.toUpperCase()})</div>
+                                    <div class="trade-date">${formatTradeDate(trade.openTime)} → ${formatTradeDate(trade.closeTime)} (${formatDuration(trade.duration)})</div>
+                                </div>
+                                <div class="trade-profit ${trade.profit >= 0 ? 'positive' : 'negative'}">
+                                    ¥${Math.round(trade.profit).toLocaleString()}
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${hourTrades.length > 10 ? `<div style="text-align: center; color: #6b7280; padding: 10px;">他 ${hourTrades.length - 10}件</div>` : ''}
+                    </div>
+                </div>
+                
+                <div class="drill-section">
+                    <h3>この時間帯の特徴分析</h3>
+                    <div class="drill-insights">
+                        <h4>主な特徴</h4>
+                        <ul>
+                            ${analysis.insights.map(insight => `<li>${insight}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="drill-insights" style="background: ${analysis.totalProfit >= 0 ? '#f0fdf4' : '#fef2f2'}; border-left-color: ${analysis.totalProfit >= 0 ? '#22c55e' : '#ef4444'};">
+                        <h4>${analysis.totalProfit >= 0 ? 'この時間帯を活用するコツ' : 'この時間帯での注意点'}</h4>
+                        <ul>
+                            ${analysis.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            // サイドパネルを表示
+            sidePanelOverlay.style.display = 'block';
+            sidePanel.classList.add('open');
+            
+            // チャートを作成
+            setTimeout(() => {
+                createTimeDrillDownCharts(hourTrades, analysis, hour);
+            }, 100);
+        }
+
+        function analyzeTimeSlotPattern(trades, hour) {
+            const winTrades = trades.filter(t => t.isWin);
+            const winRate = trades.length > 0 ? ((winTrades.length / trades.length) * 100).toFixed(1) : '0.0';
+            const totalProfit = trades.reduce((sum, t) => sum + t.profit, 0);
+            
+            // 通貨ペア分析
+            const symbolStats = {};
+            trades.forEach(trade => {
+                if (!symbolStats[trade.symbol]) symbolStats[trade.symbol] = { count: 0, profit: 0 };
+                symbolStats[trade.symbol].count++;
+                symbolStats[trade.symbol].profit += trade.profit;
+            });
+            const topSymbol = Object.keys(symbolStats).length > 0 ? 
+                Object.keys(symbolStats).reduce((a, b) => symbolStats[a].count > symbolStats[b].count ? a : b) : 'なし';
+            
+            // 曜日分析
+            const weekdayStats = {};
+            trades.forEach(trade => {
+                const weekday = trade.openTime.getDay();
+                if (!weekdayStats[weekday]) weekdayStats[weekday] = { count: 0, profit: 0 };
+                weekdayStats[weekday].count++;
+                weekdayStats[weekday].profit += trade.profit;
+            });
+            
+            // エントリー vs 決済時刻分析
+            const entryExitStats = { entry: {}, exit: {} };
+            trades.forEach(trade => {
+                const entryHour = trade.openTime.getHours();
+                const exitHour = trade.closeTime.getHours();
+                
+                if (!entryExitStats.entry[entryHour]) entryExitStats.entry[entryHour] = 0;
+                if (!entryExitStats.exit[exitHour]) entryExitStats.exit[exitHour] = 0;
+                
+                entryExitStats.entry[entryHour]++;
+                entryExitStats.exit[exitHour]++;
+            });
+            
+            // 月別統計
+            const monthlyStats = {};
+            trades.forEach(trade => {
+                const month = `${trade.openTime.getFullYear()}-${String(trade.openTime.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyStats[month]) monthlyStats[month] = { count: 0, profit: 0 };
+                monthlyStats[month].count++;
+                monthlyStats[month].profit += trade.profit;
+            });
+            
+            // 市場情報の生成
+            const marketInfo = getMarketInfo(hour);
+            
+            // 平均保有時間
+            const avgDuration = trades.length > 0 ? trades.reduce((sum, t) => sum + t.duration, 0) / trades.length : 0;
+            
+            // インサイト生成
+            const insights = [
+                `この時間帯の勝率: ${winRate}% (全体平均と比較)`,
+                `最も多い通貨ペア: ${topSymbol} (${symbolStats[topSymbol]?.count || 0}回)`,
+                `平均保有時間: ${formatDuration(avgDuration)}`,
+                `エントリーが集中する時間: ${hour}時台（${entryExitStats.entry[hour] || 0}回）`
+            ];
+            
+            // 推奨事項生成
+            let recommendations;
+            if (totalProfit >= 0) {
+                recommendations = [
+                    `${hour}時台（日本時間）は積極的にトレードを検討`,
+                    `${topSymbol}での取引機会を重点的に監視`,
+                    `この時間帯の市場特性を活用した戦略を継続`,
+                    `平均保有時間${formatDuration(avgDuration)}を参考に利確・損切りを設定`
+                ];
+            } else {
+                recommendations = [
+                    `${hour}時台（日本時間）の取引は慎重に判断`,
+                    `この時間帯の市場ボラティリティに注意`,
+                    `より厳格なリスク管理でポジションサイズを調整`,
+                    `${formatDuration(avgDuration)}以内での早期決済を検討`
+                ];
+            }
+            
+            return {
+                winRate,
+                totalProfit,
+                topSymbol,
+                symbolStats,
+                weekdayStats,
+                entryExitStats,
+                monthlyStats,
+                marketInfo,
+                insights,
+                recommendations
+            };
+        }
+
+        function getMarketInfo(hour) {
+            const marketSessions = [
+                { start: 6, end: 8, name: 'オセアニア市場開始', description: 'ウェリントン・シドニー開場' },
+                { start: 8, end: 9, name: '東京市場開始', description: '東京市場開場、アジア勢参入' },
+                { start: 9, end: 10, name: '東京市場活発化', description: '日本企業の取引開始' },
+                { start: 15, end: 16, name: 'ロンドン市場準備', description: 'ヨーロッパ勢の準備時間' },
+                { start: 16, end: 17, name: 'ロンドン市場開始', description: 'ロンドン市場開場、ボラティリティ上昇' },
+                { start: 17, end: 18, name: 'ロンドン市場活発化', description: 'ヨーロッパ勢本格参入' },
+                { start: 21, end: 22, name: 'NY市場準備', description: 'ニューヨーク市場開場準備' },
+                { start: 22, end: 23, name: 'NY市場開始', description: 'ニューヨーク市場開場、最高ボラティリティ' },
+                { start: 23, end: 0, name: 'ロンドン・NY重複', description: '最も活発な取引時間' },
+                { start: 0, end: 2, name: '欧米市場活発', description: 'ロンドン・NY両市場参加' },
+                { start: 2, end: 6, name: '市場閑散時間', description: '流動性低下、スプレッド拡大傾向' }
+            ];
+            
+            const relevantSessions = marketSessions.filter(session => 
+                (hour >= session.start && hour < session.end) ||
+                (session.start > session.end && (hour >= session.start || hour < session.end))
+            );
+            
+            if (relevantSessions.length === 0) {
+                return ['特定の市場セッションに該当しない時間帯', '一般的に取引量が少ない傾向'];
+            }
+            
+            return relevantSessions.map(session => `${session.name}: ${session.description}`);
+        }
+
+        function createTimeDrillDownCharts(trades, analysis, hour) {
+            // 通貨ペア別チャート
+            const symbolCtx = document.getElementById('drillTimeSymbolChart');
+            if (symbolCtx) {
+                const symbolData = Object.entries(analysis.symbolStats)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 8);
+                
+                const symbolLabels = symbolData.map(([symbol]) => symbol);
+                const symbolProfits = symbolData.map(([, stats]) => stats.profit);
+                
+                new Chart(symbolCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: symbolLabels,
+                        datasets: [{
+                            label: '損益',
+                            data: symbolProfits,
+                            backgroundColor: symbolProfits.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            
+            // 曜日別チャート
+            const weekdayCtx = document.getElementById('drillTimeWeekdayChart');
+            if (weekdayCtx) {
+                const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+                const weekdayData = weekdays.map((_, i) => analysis.weekdayStats[i]?.profit || 0);
+                
+                new Chart(weekdayCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: weekdays,
+                        datasets: [{
+                            label: '損益',
+                            data: weekdayData,
+                            backgroundColor: weekdayData.map(p => p >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            
+            // エントリー vs 決済チャート
+            const entryExitCtx = document.getElementById('drillEntryExitChart');
+            if (entryExitCtx) {
+                const hours = Array.from({length: 24}, (_, i) => i);
+                const entryData = hours.map(h => analysis.entryExitStats.entry[h] || 0);
+                const exitData = hours.map(h => analysis.entryExitStats.exit[h] || 0);
+                
+                new Chart(entryExitCtx, {
+                    type: 'line',
+                    data: {
+                        labels: hours.map(h => `${h}時`),
+                        datasets: [
+                            {
+                                label: 'エントリー回数',
+                                data: entryData,
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                tension: 0.1
+                            },
+                            {
+                                label: '決済回数',
+                                data: exitData,
+                                borderColor: 'rgba(239, 68, 68, 1)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                tension: 0.1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            x: { title: { display: true, text: '時間帯（日本時間）' }},
+                            y: { beginAtZero: true } 
+                        }
+                    }
+                });
+            }
+            
+            // 月別チャート
+            const monthlyCtx = document.getElementById('drillTimeMonthlyChart');
+            if (monthlyCtx) {
+                const monthLabels = Object.keys(analysis.monthlyStats).sort();
+                const monthlyProfits = monthLabels.map(month => analysis.monthlyStats[month].profit);
+                
+                new Chart(monthlyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: monthLabels,
+                        datasets: [{
+                            label: `${hour}時台の月別損益`,
+                            data: monthlyProfits,
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        }
+
+        function createDurationChart(ctx, currentTrades) {
+            const winTrades = currentTrades.filter(t => t.isWin);
+            const lossTrades = currentTrades.filter(t => !t.isWin);
+
+            // 時間を分単位に変換して範囲別に分類
+            const timeRanges = [
+                { min: 0, max: 30, label: '30分以内' },
+                { min: 30, max: 60, label: '30分〜1時間' },
+                { min: 60, max: 120, label: '1〜2時間' },
+                { min: 120, max: 240, label: '2〜4時間' },
+                { min: 240, max: 480, label: '4〜8時間' },
+                { min: 480, max: 1440, label: '8〜24時間' },
+                { min: 1440, max: Infinity, label: '1日以上' }
+            ];
+
+            const winDistribution = timeRanges.map(range => 
+                winTrades.filter(t => {
+                    const minutes = t.duration / (1000 * 60);
+                    return minutes > range.min && minutes <= range.max;
+                }).length
+            );
+
+            const lossDistribution = timeRanges.map(range => 
+                lossTrades.filter(t => {
+                    const minutes = t.duration / (1000 * 60);
+                    return minutes > range.min && minutes <= range.max;
+                }).length
+            );
+
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: timeRanges.map(r => r.label),
+                    datasets: [
+                        {
+                            label: '勝ちトレード',
+                            data: winDistribution,
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '負けトレード',
+                            data: lossDistribution,
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderColor: 'rgba(239, 68, 68, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const selectedRange = timeRanges[index];
+                            showDurationDrillDown(selectedRange, currentTrades);
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '保有時間' }
+                        },
+                        y: {
+                            title: { display: true, text: '取引回数' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            return chart;
+        }
+    </script>
+</body>
+</html>
